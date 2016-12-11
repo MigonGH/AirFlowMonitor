@@ -1,0 +1,17 @@
+/*
+ * utils.h
+ *
+ *  Created on: 10 gru 2016
+ *      Author: Mat
+ */
+
+#ifndef UTILS_H_
+#define UTILS_H_
+
+#define TRUE (!0)
+#define FALSE (0)
+#define LEDS_ON(PIN)	PORTB |= (1 << PIN)		// lights on
+#define LEDS_OFF(PIN) 	PORTB &= ~((1 << PIN)	// lights off
+
+#typedef unsigned int uint16
+#endif /* UTILS_H_ */
