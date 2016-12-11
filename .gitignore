@@ -1,2 +1,7 @@
 tools/
 eclipse/
+workspace/.metadata
+workspace/AirFlowMonitor/Release
+workspace/RemoteSystemsTempFiles
+*.o
+*.d
