@@ -7,7 +7,7 @@
 
 #ifndef MAIN_H_
 #define MAIN_H_
-static void initADC();
 static void initTimer();
+
 
 #endif /* MAIN_H_ */

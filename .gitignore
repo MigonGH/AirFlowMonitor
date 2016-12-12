@@ -5,3 +5,7 @@ workspace/AirFlowMonitor/Release
 workspace/RemoteSystemsTempFiles
 *.o
 *.d
+*.elf
+*.hex
+*.lss
+*.map
