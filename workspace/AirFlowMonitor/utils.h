@@ -22,6 +22,9 @@
 #define RESET_PIN(PORT, PIN)  (PORT &= ~(1 << PIN))	   // lights off
 #define TOGGLE_PIN(PORT, PIN) (PORT ^= (1 << PIN))    // toggle
 
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
 /* DEBUG PINS */
 #define SET_DEBUG0   SET_PIN(PORTD,PD2)
 #define RESET_DEBUG0 RESET_PIN(PORTD,PD2)

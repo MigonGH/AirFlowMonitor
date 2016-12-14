@@ -7,6 +7,9 @@
 
 #ifndef ADC_ADC_H_
 #define ADC_ADC_H_
+
+#define DEBUG_LOGS DISABLED
+
 typedef enum
 {
 	ADC0 = 0,
@@ -15,14 +18,12 @@ typedef enum
 	ADC3 = 3,
 	ADC4 = 4,
 	ADC5 = 5,
-	ADC_MAX
+	ADC_MAX_CHANNELS
 }adcChannel_t;
 
-
-
 void initADC();
-uint16_t getAdcRead(adcChannel_t channel);
 void adcCycylic();
-extern int adcReadFlag;
+
+uint16_t getAdcRead(adcChannel_t channel);
 
 #endif /* ADC_ADC_H_ */

@@ -40,9 +40,7 @@ void USART_putlong(uint32_t value, uint8_t radix)
 	USART_puts(buf);
 }
 
-void debugLog(char *s, uint32_t val)
+void USART_cleanScreen()
 {
-	USART_puts(s);
-	USART_putlong(val, 10);
-	USART_puts("\r\n");
+	USART_putc(12);
 }

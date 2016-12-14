@@ -13,22 +13,30 @@
 #include "avr/pgmspace.h"
 /***************************************
  * 				DEFINES
- */
+ **************************************/
 #define ADC_CHANNEL_SELECTION_MASK (0x0F)
 
+#define ADC_READ (adcContainer.config[adcContainer.currentChannel].adcReadValue)
+#define ADC_MAX  (adcContainer.config[adcContainer.currentChannel].adcMaxValue)
+#define ADC_MIN  (adcContainer.config[adcContainer.currentChannel].adcMinValue)
+
 /***************************************
- * 				TYPES
- */
+* 				TYPES
+***************************************/
 typedef struct
 {
 	bool adcChannelEnabled;
 	uint16_t adcReadValue;
+#if (ENABLED == DEBUG_LOGS)
+	uint16_t adcMaxValue;
+	uint16_t adcMinValue;
+#endif
 }adcConfig_t;
 
 typedef struct
 {
 	adcChannel_t currentChannel;
-	adcConfig_t config[ADC_MAX];
+	adcConfig_t  config[ADC_MAX_CHANNELS];
 }adcContainer_t;
 
 
@@ -46,15 +54,16 @@ static adcContainer_t adcContainer =
 };
 
 /***************************************
- * 		FUNCTION PROTOTYPES
- */
-
+* 		FUNCTION PROTOTYPES
+***************************************/
+#if (ENABLED == DEBUG_LOGS)
 static void incrementChannel();
-
+static void initDebugScreen();
+#endif
 
 /***************************************
- * 		GLOBAL FUNCTIONS
- */
+* 		GLOBAL FUNCTIONS
+***************************************/
 void initADC()
 {
 	uint8_t index = ADC0;
@@ -63,8 +72,8 @@ void initADC()
 	ADMUX = RESET;
 
 	ADCSRA |= (1 << ADEN);   // ADEN=1 enable ADC
-	ADCSRA &= ~(1 << ADPS0); // set prescaler to 16
-	ADCSRA &= ~(1 << ADPS1);
+	ADCSRA |= (1 << ADPS0); // set prescaler to 16
+	ADCSRA |= (1 << ADPS1);
 	ADCSRA |= (1 << ADPS2);
 	//ADCSRA |= (1 << ADATE);  //Auto trigger enable
 
@@ -77,7 +86,7 @@ void initADC()
 	ADMUX |= (1 << REFS1);
 
 	/* Just look for first enabled channel in adcConfig and set it into ADMUX register */
-	for(index = ADC0; index < ADC_MAX ; index++)
+	for(index = ADC0; index < ADC_MAX_CHANNELS ; index++)
 	{
 		if (adcContainer.config[index].adcChannelEnabled == ENABLED)
 		{
@@ -92,23 +101,15 @@ void initADC()
 //	}
 //	ADMUX |= (1 << MUX2);
 	ADCSRA |= (1 << ADSC);  // Start conversion
-}
-#if 0
-void setChannel(adcChannel_t channel)
-{
-	/* Check if channel is supported */
-	if ((channel < ADC_MAX) && (channel >= ADC0))
-	{
-		ADMUX = (ADMUX & (~ADC_CHANNEL_SELECTION_MASK)) | channel;
-		adcContainer.currentChannel = channel;
-	}
-}
+#if (ENABLED == DEBUG_LOGS)
+	initDebugScreen();
 #endif
-#if 1
+}
+
 uint16_t getAdcRead(adcChannel_t channel)
 {
 	uint16_t retVal = 0;
-	if ((channel < ADC_MAX) && (channel >= ADC0))
+	if ((channel < ADC_MAX_CHANNELS) && (channel >= ADC0))
 	{
 		retVal = adcContainer.config[channel].adcReadValue;
 	}
@@ -119,48 +120,20 @@ uint16_t getAdcRead(adcChannel_t channel)
 	}
 	return retVal;
 }
-#else
-uint16_t getAdcRead(adcChannel_t channel)
-{
-	//ADCSRA |= (1 << ADSC);  // Start conversion
-	return ADCW;
-}
-#endif
 
-static uint16_t debugADCread1 = 0;
-static uint16_t debugADCread0 = 0;
 void adcCycylic ()
 {
-	debugADCread0 = getAdcRead(ADC4);
-	if ((debugADCread0/100)%2 == 0)
-	{
-		SET_DEBUG1;
-	}
-	else
-	{
-		RESET_DEBUG1;
-	}
-
-		debugADCread1 = getAdcRead(ADC5);
-		if ((debugADCread1/100)%2 == 0)
-		{
-			SET_DEBUG0;
-		}
-		else
-		{
-			RESET_DEBUG0;
-		}
+	/* Nothing to do? */
 }
 
 /***************************************
- * 		    STATIC FUNCTIONS
- */
-
+* 		    STATIC FUNCTIONS
+***************************************/
 static void incrementChannel()
 {
 	adcChannel_t index = 0;
 	/* Switch for next enabled channel */
-	for (index = adcContainer.currentChannel + 1 ; index < ADC_MAX ; index++)
+	for (index = adcContainer.currentChannel + 1 ; index < ADC_MAX_CHANNELS ; index++)
 	{
 		if (adcContainer.config[index].adcChannelEnabled == ENABLED)
 		{
@@ -182,21 +155,65 @@ static void incrementChannel()
 	}
 	//TODO find better way to circle through adc channels
 }
-
+#if (ENABLED == DEBUG_LOGS)
+static void initDebugScreen()
+{
+	int eachEnabledChannel = 0;
+	for ( ; eachEnabledChannel < ADC_MAX_CHANNELS ; eachEnabledChannel++)
+	{
+		if (ENABLED == adcContainer.config[eachEnabledChannel].adcChannelEnabled)
+		{
+			adcContainer.config[eachEnabledChannel].adcMinValue = 1024; //TODO need to disapear
+			USART_puts("adcReadValue:   \r\n");
+		}
+	}
+}
+void updateDebugScreen (adcChannel_t channel)
+{
+	if (channel > ADC0 && channel < ADC_MAX_CHANNELS)
+	{
+		char temp[20];
+		itoa(channel, temp, 10);
+		{
+			USART_puts("\033[");
+			USART_puts(temp);
+			USART_puts(";3H");
+			USART_puts(" ADC: ");
+			USART_putlong(ADC_READ, 10);
+			USART_puts("\033[");
+			USART_puts(temp);
+			USART_puts(";20H");
+			USART_puts(" Min: ");
+			USART_putlong(ADC_MIN, 10);
+			USART_puts("\033[");
+			USART_puts(temp);
+			USART_puts(";35H");
+			USART_puts(" Max: ");
+			USART_putlong(ADC_MAX, 10);
+			USART_puts("\033[");
+			USART_puts(temp);
+			USART_puts(";50H");
+			USART_puts("  Delta: ");
+			USART_putlong(ADC_MAX - ADC_MIN, 10);
+		}
+	}
+}
+#endif
 
 /***************************************
- * 				  ISR
- */
+* 				  ISR
+***************************************/
 ISR(ADC_vect)
 {
+#if (ENABLED == DEBUG_LOGS)
+	ADC_MAX = MAX(ADC_READ, ADC_MAX);
+	ADC_MIN = MIN(ADC_READ, ADC_MIN);
+	updateDebugScreen(adcContainer.currentChannel);
+#endif
 
-	debugLog("adcContainer.currentChannel: ", adcContainer.currentChannel);
-	debugLog("adcContainer.config[adcContainer.currentChannel].adcReadValue: ", adcContainer.config[adcContainer.currentChannel].adcReadValue);
-	debugLog("*****", 0);
 	/* Save the reading from currently processed channel into a local container */
-	adcContainer.config[adcContainer.currentChannel].adcReadValue = ADCW;
+	ADC_READ = ADCW;
 	incrementChannel();
 	ADCSRA |= (1 << ADSC);  // Start conversion
-
 }
 
