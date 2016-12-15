@@ -8,7 +8,7 @@
 #ifndef ADC_ADC_H_
 #define ADC_ADC_H_
 
-#define DEBUG_LOGS DISABLED
+#define DEBUG_LOGS ENABLED
 
 typedef enum
 {

@@ -13,7 +13,7 @@
 #include "string.h"
 #include "utils.h"
 #include "adc.h"
-//TODO clean and sort headers
+#include <stdio.h>
 
 /* DATA */
 
@@ -26,12 +26,10 @@ static void init()
 	DDRD = 0xFE;
 
 	//clock_prescale_set(clock_div_1);
-
-
-
+    _delay_ms(1000);
 	initADC();
-	USART_init(__UBRR);
-	sei(); //TODO after initADC its working?
+	initUSART();
+	sei();
 
 
 
@@ -47,6 +45,7 @@ static void init()
 int main (int argc, char **argv)
 {
 	init();
+
 	while (TRUE)
 	{
 		adcCycylic();

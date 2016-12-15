@@ -8,29 +8,49 @@
 #include "avr/io.h"
 #include "utils.h"
 #include "stdlib.h"
+#include <stdio.h>
 
+#define BAUD 19200
+#include "util/setbaud.h"
 
-void USART_init(uint16_t UBRR)
+static void USARTS_putc(char c, FILE *stream);
+
+FILE USART_output = FDEV_SETUP_STREAM(USARTS_putc, NULL, _FDEV_SETUP_WRITE);
+/***************************************
+* 		    STATIC FUNCTIONS
+***************************************/
+static void USARTS_putc(char c, FILE *stream)
 {
-	/*Set baud rate */
-	UBRR0H = (unsigned char)(UBRR>>8);
-	UBRR0L = (unsigned char)UBRR;
-	/* Enable receiver and transmitter */
-	UCSR0B = (1<<RXEN0)|(1<<TXEN0);
-	/* Set frame format: 8data, 2stop */
+    if (c == '\n')
+    {
+        USARTS_putc('\r', stream);
+    }
+    /* Wait for empty transmit buffer */
+    while ( !( UCSR0A & (1 << UDRE0)) );
+    /* Put data into buffer, sends the data */
+    UDR0 = c;
+}
+/***************************************
+* 		GLOBAL FUNCTIONS
+***************************************/
+void initUSART()
+{
+    /* Redirect stdout to USART register */    stdout = &USART_output;
+
+    /*Set baud rate */
+    UBRR0H = UBRRH_VALUE;
+    UBRR0L = UBRRL_VALUE;
+    /* Enable transmitter */
+    UCSR0B |= _BV(TXEN0);
+
+    /* Set frame format: 8data, 1 stop */
+    UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);
 }
 
-void USART_putc( unsigned char data )
-{
-/* Wait for empty transmit buffer */
-while ( !( UCSR0A & (1 << UDRE0)) );
-/* Put data into buffer, sends the data */
-UDR0 = data;
-}
-
+#if 1
 void USART_puts(char *s)
 {
-	while (*s) USART_putc (*s++);
+    while (*s) USART_putc (*s++);
 }
 
 void USART_putlong(uint32_t value, uint8_t radix)
@@ -44,3 +64,12 @@ void USART_cleanScreen()
 {
 	USART_putc(12);
 }
+
+void USART_putc( unsigned char data )
+{
+/* Wait for empty transmit buffer */
+while ( !( UCSR0A & (1 << UDRE0)) );
+/* Put data into buffer, sends the data */
+UDR0 = data;
+}
+#endif

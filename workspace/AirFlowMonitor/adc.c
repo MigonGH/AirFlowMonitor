@@ -8,17 +8,22 @@
 #include "avr/interrupt.h"
 #include "utils.h"
 #include "adc.h"
-#include "uartDebug.h"
 #include "stdlib.h"
 #include "avr/pgmspace.h"
+#if (ENABLED == DEBUG_LOGS)
+#include "uartDebug.h"
+#endif
+
+
 /***************************************
  * 				DEFINES
  **************************************/
 #define ADC_CHANNEL_SELECTION_MASK (0x0F)
 
-#define ADC_READ (adcContainer.config[adcContainer.currentChannel].adcReadValue)
-#define ADC_MAX  (adcContainer.config[adcContainer.currentChannel].adcMaxValue)
-#define ADC_MIN  (adcContainer.config[adcContainer.currentChannel].adcMinValue)
+#define CURRENT_CHANNEL   (adcContainer.currentChannel)
+#define _ADC(channel)      (adcContainer.config[channel].adcReadValue)
+#define _ADC_MAX(channel)  (adcContainer.config[channel].adcMaxValue)
+#define _ADC_MIN(channel)  (adcContainer.config[channel].adcMinValue)
 
 /***************************************
 * 				TYPES
@@ -39,54 +44,63 @@ typedef struct
 	adcConfig_t  config[ADC_MAX_CHANNELS];
 }adcContainer_t;
 
-
+#if (ENABLED != DEBUG_LOGS)
 static adcContainer_t adcContainer =
 {
 	.currentChannel = ADC0,
 	.config = {
-		/*ADC0*/ {DISABLED, 0},
-		/*ADC1*/ {DISABLED, 0},
-		/*ADC2*/ {DISABLED,  0},
-		/*ADC3*/ {DISABLED,  0},
-		/*ADC4*/ {ENABLED,  0},
-		/*ADC5*/ {ENABLED,  0}
+		/*ADC0*/ {DISABLED,  0},
+		/*ADC1*/ {DISABLED,  0},
+		/*ADC2*/ {ENABLED,  0},
+		/*ADC3*/ {ENABLED,  0},
+		/*ADC4*/ {ENABLED,   0},
+		/*ADC5*/ {ENABLED,   0}
 	}
 };
+#else
+static adcContainer_t adcContainer =
+{
+    .currentChannel = ADC0,
+    .config = { /*  CHANNEL CONFIG  ADC  MAX MIN    */
+        /*ADC0*/ {  DISABLED,       0,   0,  1024   },
+        /*ADC1*/ {  DISABLED,       0,   0,  1024   },
+        /*ADC2*/ {  DISABLED,       0,   0,  1024   },
+        /*ADC3*/ {  DISABLED,       0,   0,  1024   },
+        /*ADC4*/ {  ENABLED,        0,   0,  1024   },
+        /*ADC5*/ {  DISABLED,       0,   0,  1024   }
+    }
+};
+#endif
 
 /***************************************
 * 		FUNCTION PROTOTYPES
 ***************************************/
-#if (ENABLED == DEBUG_LOGS)
-static void incrementChannel();
-static void initDebugScreen();
-#endif
 
 /***************************************
 * 		GLOBAL FUNCTIONS
 ***************************************/
 void initADC()
 {
-	uint8_t index = ADC0;
 	ADCSRA = RESET;
 	ADCSRB = RESET;
 	ADMUX = RESET;
 
-	ADCSRA |= (1 << ADEN);   // ADEN=1 enable ADC
-	ADCSRA |= (1 << ADPS0); // set prescaler to 16
+	ADCSRA |= (1 << ADEN);     // ADEN=1 enable ADC
+	ADCSRA |= (1 << ADPS0);    // set prescaler to 16
 	ADCSRA |= (1 << ADPS1);
 	ADCSRA |= (1 << ADPS2);
-	//ADCSRA |= (1 << ADATE);  //Auto trigger enable
+	ADCSRA |= (1 << ADATE);  //Auto trigger enable
 
-    ADCSRA |= (1 << ADIE);   // enable ADC_vect
-//	ADCSRB &= ~(1 << ADTS0); // Set trigger source to free running
+    ADCSRA |= (1 << ADIE);     // enable ADC_vect
+//	ADCSRB &= ~(1 << ADTS0);   // Set trigger source to free running
 //	ADCSRB &= ~(1 << ADTS1);
 //	ADCSRB &= ~(1 << ADTS2);
 
-	ADMUX |= (1 << REFS0);   // Set Internal 1.1V Voltage Reference with external capacitor at AREF pin
+	ADMUX |= (1 << REFS0);     // Set Internal 1.1V Voltage Reference with external capacitor at AREF pin
 	ADMUX |= (1 << REFS1);
 
 	/* Just look for first enabled channel in adcConfig and set it into ADMUX register */
-	for(index = ADC0; index < ADC_MAX_CHANNELS ; index++)
+	for(uint8_t index = ADC0; index < ADC_MAX_CHANNELS ; index++)
 	{
 		if (adcContainer.config[index].adcChannelEnabled == ENABLED)
 		{
@@ -95,15 +109,7 @@ void initADC()
 			break;
 		}
 	}
-//	if ((ADMUX & ADC_CHANNEL_SELECTION_MASK) == ADC4)
-//	{
-//		SET_DEBUG0;
-//	}
-//	ADMUX |= (1 << MUX2);
 	ADCSRA |= (1 << ADSC);  // Start conversion
-#if (ENABLED == DEBUG_LOGS)
-	initDebugScreen();
-#endif
 }
 
 uint16_t getAdcRead(adcChannel_t channel)
@@ -129,7 +135,7 @@ void adcCycylic ()
 /***************************************
 * 		    STATIC FUNCTIONS
 ***************************************/
-static void incrementChannel()
+static void incrementCurrentChannel()
 {
 	adcChannel_t index = 0;
 	/* Switch for next enabled channel */
@@ -142,7 +148,7 @@ static void incrementChannel()
 			return;
 		}
 	}
-	/* Reached the end of config lets start again from the begginig and search though another "half" */
+	/* Reached the end of config and didnt find anything. Lets start again from the begginig and search though another "half" */
 	for (index = ADC0 ; index < adcContainer.currentChannel ; index++)
 	{
 		if (adcContainer.config[index].adcChannelEnabled == ENABLED)
@@ -151,51 +157,24 @@ static void incrementChannel()
 			adcContainer.currentChannel = index;
 			return;
 		}
-
 	}
-	//TODO find better way to circle through adc channels
 }
 #if (ENABLED == DEBUG_LOGS)
-static void initDebugScreen()
-{
-	int eachEnabledChannel = 0;
-	for ( ; eachEnabledChannel < ADC_MAX_CHANNELS ; eachEnabledChannel++)
-	{
-		if (ENABLED == adcContainer.config[eachEnabledChannel].adcChannelEnabled)
-		{
-			adcContainer.config[eachEnabledChannel].adcMinValue = 1024; //TODO need to disapear
-			USART_puts("adcReadValue:   \r\n");
-		}
-	}
-}
 void updateDebugScreen (adcChannel_t channel)
 {
 	if (channel > ADC0 && channel < ADC_MAX_CHANNELS)
 	{
-		char temp[20];
-		itoa(channel, temp, 10);
-		{
-			USART_puts("\033[");
-			USART_puts(temp);
-			USART_puts(";3H");
-			USART_puts(" ADC: ");
-			USART_putlong(ADC_READ, 10);
-			USART_puts("\033[");
-			USART_puts(temp);
-			USART_puts(";20H");
-			USART_puts(" Min: ");
-			USART_putlong(ADC_MIN, 10);
-			USART_puts("\033[");
-			USART_puts(temp);
-			USART_puts(";35H");
-			USART_puts(" Max: ");
-			USART_putlong(ADC_MAX, 10);
-			USART_puts("\033[");
-			USART_puts(temp);
-			USART_puts(";50H");
-			USART_puts("  Delta: ");
-			USART_putlong(ADC_MAX - ADC_MIN, 10);
-		}
+	    printf("\033[%d;3H", channel);
+	    printf("ADC%01d: %04d", channel, _ADC(channel));
+
+	    printf("\033[%d;20H", channel);
+	    printf("MIN: %04d", _ADC_MIN(channel));
+
+	    printf("\033[%d;35H", channel);
+	    printf("MAX: %04d", _ADC_MAX(channel));
+
+	    printf("\033[%d;50H", channel);
+	    printf("Delta: %04d", _ADC_MAX(channel) - _ADC_MIN(channel));
 	}
 }
 #endif
@@ -203,17 +182,40 @@ void updateDebugScreen (adcChannel_t channel)
 /***************************************
 * 				  ISR
 ***************************************/
+static uint16_t averageSum = 0;
+static uint8_t index = 0;
 ISR(ADC_vect)
 {
-#if (ENABLED == DEBUG_LOGS)
-	ADC_MAX = MAX(ADC_READ, ADC_MAX);
-	ADC_MIN = MIN(ADC_READ, ADC_MIN);
-	updateDebugScreen(adcContainer.currentChannel);
-#endif
+#if 0
+    /* Save the reading from currently processed channel into a local container */
+    _ADC(CURRENT_CHANNEL) = ADCW;
 
-	/* Save the reading from currently processed channel into a local container */
-	ADC_READ = ADCW;
-	incrementChannel();
-	ADCSRA |= (1 << ADSC);  // Start conversion
+#if (ENABLED == DEBUG_LOGS)
+    _ADC_MAX(CURRENT_CHANNEL) = MAX(_ADC(CURRENT_CHANNEL), _ADC_MAX(CURRENT_CHANNEL));
+    _ADC_MIN(CURRENT_CHANNEL) = MIN(_ADC(CURRENT_CHANNEL), _ADC_MIN(CURRENT_CHANNEL));
+    updateDebugScreen(CURRENT_CHANNEL);
+#endif
+    incrementCurrentChannel();
+#else
+    if (index < 16)
+    {
+        index++;
+        averageSum += ADCW;
+    }
+    else
+    {
+        /* Save the reading from currently processed channel into a local container */
+        _ADC(CURRENT_CHANNEL) = (averageSum >> 4);
+
+    #if (ENABLED == DEBUG_LOGS)
+        _ADC_MAX(CURRENT_CHANNEL) = MAX(_ADC(CURRENT_CHANNEL), _ADC_MAX(CURRENT_CHANNEL));
+        _ADC_MIN(CURRENT_CHANNEL) = MIN(_ADC(CURRENT_CHANNEL), _ADC_MIN(CURRENT_CHANNEL));
+        updateDebugScreen(CURRENT_CHANNEL);
+    #endif
+        incrementCurrentChannel();
+        index = 0;
+        averageSum = 0;
+    }
+#endif
 }
 
