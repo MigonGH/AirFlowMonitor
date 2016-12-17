@@ -14,7 +14,7 @@
 #include "utils.h"
 #include "adc.h"
 #include <stdio.h>
-
+#include "timer.h"
 /* DATA */
 
 /* FUNCTIONS */
@@ -29,18 +29,12 @@ static void init()
     _delay_ms(1000);
 	initADC();
 	initUSART();
+	initTimer0();
 	sei();
 
 
 
 }
-//static void initTimer()
-//{
-//	//TCCR0 |= (1 << CS00); // Set up time with no prescaling
-//	TCNT0 = 0; //Init data
-//}
-
-
 
 int main (int argc, char **argv)
 {

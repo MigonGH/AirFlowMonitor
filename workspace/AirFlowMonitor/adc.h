@@ -21,9 +21,17 @@ typedef enum
 	ADC_MAX_CHANNELS
 }adcChannel_t;
 
+typedef enum
+{
+    ADC_NO_ERROR = 0,
+    ADC_NOT_INITIALIZED = 1,
+    ADC_ERROR = 2
+}adcChannelState_t;
+
+
 void initADC();
 void adcCycylic();
 
-uint16_t getAdcRead(adcChannel_t channel);
+adcChannelState_t getAdcRead(adcChannel_t channel, uint16_t *adcVal);
 
 #endif /* ADC_ADC_H_ */

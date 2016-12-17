@@ -20,10 +20,11 @@
  **************************************/
 #define ADC_CHANNEL_SELECTION_MASK (0x0F)
 
-#define CURRENT_CHANNEL   (adcContainer.currentChannel)
-#define _ADC(channel)      (adcContainer.config[channel].adcReadValue)
-#define _ADC_MAX(channel)  (adcContainer.config[channel].adcMaxValue)
-#define _ADC_MIN(channel)  (adcContainer.config[channel].adcMinValue)
+#define CURRENT_CHANNEL     (adcContainer.currentChannel)
+#define _ADC(channel)       (adcContainer.config[channel].adcReadValue)
+#define _ADC_MAX(channel)   (adcContainer.config[channel].adcMaxValue)
+#define _ADC_MIN(channel)   (adcContainer.config[channel].adcMinValue)
+#define _ADC_STATE(channel) (adcContainer.config[channel].adcChannelState)
 
 /***************************************
 * 				TYPES
@@ -32,6 +33,7 @@ typedef struct
 {
 	bool adcChannelEnabled;
 	uint16_t adcReadValue;
+	adcChannelState_t adcChannelState;
 #if (ENABLED == DEBUG_LOGS)
 	uint16_t adcMaxValue;
 	uint16_t adcMinValue;
@@ -44,30 +46,30 @@ typedef struct
 	adcConfig_t  config[ADC_MAX_CHANNELS];
 }adcContainer_t;
 
-#if (ENABLED != DEBUG_LOGS)
+#if (ENABLED == DEBUG_LOGS)
 static adcContainer_t adcContainer =
 {
-	.currentChannel = ADC0,
-	.config = {
-		/*ADC0*/ {DISABLED,  0},
-		/*ADC1*/ {DISABLED,  0},
-		/*ADC2*/ {ENABLED,  0},
-		/*ADC3*/ {ENABLED,  0},
-		/*ADC4*/ {ENABLED,   0},
-		/*ADC5*/ {ENABLED,   0}
-	}
+    .currentChannel = ADC0,
+    .config = { /*  CONFIG     ADC         STATE          MAX MIN    */
+        /*ADC0*/ {  DISABLED,   0,   ADC_NOT_INITIALIZED,  0,  1024   },
+        /*ADC1*/ {  DISABLED,   0,   ADC_NOT_INITIALIZED,  0,  1024   },
+        /*ADC2*/ {  DISABLED,   0,   ADC_NOT_INITIALIZED,  0,  1024   },
+        /*ADC3*/ {  DISABLED,   0,   ADC_NOT_INITIALIZED,  0,  1024   },
+        /*ADC4*/ {  DISABLED,   0,   ADC_NOT_INITIALIZED,  0,  1024   },
+        /*ADC5*/ {  ENABLED,   0,   ADC_NOT_INITIALIZED,  0,  1024   }
+    }
 };
 #else
 static adcContainer_t adcContainer =
 {
     .currentChannel = ADC0,
-    .config = { /*  CHANNEL CONFIG  ADC  MAX MIN    */
-        /*ADC0*/ {  DISABLED,       0,   0,  1024   },
-        /*ADC1*/ {  DISABLED,       0,   0,  1024   },
-        /*ADC2*/ {  DISABLED,       0,   0,  1024   },
-        /*ADC3*/ {  DISABLED,       0,   0,  1024   },
-        /*ADC4*/ {  ENABLED,        0,   0,  1024   },
-        /*ADC5*/ {  DISABLED,       0,   0,  1024   }
+    .config = { /*  CONFIG      ADC    STATE                */
+        /*ADC0*/ {  DISABLED,   0,     ADC_NOT_INITIALIZED  },
+        /*ADC1*/ {  DISABLED,   0,     ADC_NOT_INITIALIZED  },
+        /*ADC2*/ {  ENABLED,    0,     ADC_NOT_INITIALIZED  },
+        /*ADC3*/ {  ENABLED,    0,     ADC_NOT_INITIALIZED  },
+        /*ADC4*/ {  ENABLED,    0,     ADC_NOT_INITIALIZED  },
+        /*ADC5*/ {  ENABLED,    0,     ADC_NOT_INITIALIZED  }
     }
 };
 #endif
@@ -92,8 +94,8 @@ void initADC()
 	ADCSRA |= (1 << ADATE);  //Auto trigger enable
 
     ADCSRA |= (1 << ADIE);     // enable ADC_vect
-//	ADCSRB &= ~(1 << ADTS0);   // Set trigger source to free running
-//	ADCSRB &= ~(1 << ADTS1);
+	ADCSRB |= (1 << ADTS0);    // Set trigger source Compare Match A
+	ADCSRB |= (1 << ADTS1);
 //	ADCSRB &= ~(1 << ADTS2);
 
 	ADMUX |= (1 << REFS0);     // Set Internal 1.1V Voltage Reference with external capacitor at AREF pin
@@ -112,17 +114,18 @@ void initADC()
 	ADCSRA |= (1 << ADSC);  // Start conversion
 }
 
-uint16_t getAdcRead(adcChannel_t channel)
+adcChannelState_t getAdcRead(adcChannel_t channel, uint16_t *adcVal)
 {
-	uint16_t retVal = 0;
+    adcChannelState_t retVal = ADC_ERROR;
 	if ((channel < ADC_MAX_CHANNELS) && (channel >= ADC0))
 	{
-		retVal = adcContainer.config[channel].adcReadValue;
+	    *adcVal = _ADC(channel);
+	    retVal = _ADC_STATE(channel);
 	}
 	else
 	{
 		/* invalid channel request */
-		retVal = 0;
+		retVal = ADC_ERROR;
 	}
 	return retVal;
 }
@@ -186,36 +189,24 @@ static uint16_t averageSum = 0;
 static uint8_t index = 0;
 ISR(ADC_vect)
 {
-#if 0
-    /* Save the reading from currently processed channel into a local container */
-    _ADC(CURRENT_CHANNEL) = ADCW;
-
-#if (ENABLED == DEBUG_LOGS)
-    _ADC_MAX(CURRENT_CHANNEL) = MAX(_ADC(CURRENT_CHANNEL), _ADC_MAX(CURRENT_CHANNEL));
-    _ADC_MIN(CURRENT_CHANNEL) = MIN(_ADC(CURRENT_CHANNEL), _ADC_MIN(CURRENT_CHANNEL));
-    updateDebugScreen(CURRENT_CHANNEL);
-#endif
-    incrementCurrentChannel();
-#else
-    if (index < 16)
+    /* Collect average of every 16 samples */
+    if (index++ < 16)
     {
-        index++;
         averageSum += ADCW;
     }
     else
     {
         /* Save the reading from currently processed channel into a local container */
         _ADC(CURRENT_CHANNEL) = (averageSum >> 4);
-
+        _ADC_STATE(CURRENT_CHANNEL) = ADC_NO_ERROR;
     #if (ENABLED == DEBUG_LOGS)
         _ADC_MAX(CURRENT_CHANNEL) = MAX(_ADC(CURRENT_CHANNEL), _ADC_MAX(CURRENT_CHANNEL));
         _ADC_MIN(CURRENT_CHANNEL) = MIN(_ADC(CURRENT_CHANNEL), _ADC_MIN(CURRENT_CHANNEL));
         updateDebugScreen(CURRENT_CHANNEL);
     #endif
         incrementCurrentChannel();
-        index = 0;
-        averageSum = 0;
+        index = 1;
+        averageSum = ADCW;
     }
-#endif
 }
 
