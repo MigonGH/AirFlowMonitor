@@ -13,9 +13,13 @@
 #define BAUD 19200
 #include "util/setbaud.h"
 
+static void USART_cleanScreen();
 static void USARTS_putc(char c, FILE *stream);
+static void USART_putc( unsigned char data );
+
 
 FILE USART_output = FDEV_SETUP_STREAM(USARTS_putc, NULL, _FDEV_SETUP_WRITE);
+
 /***************************************
 * 		    STATIC FUNCTIONS
 ***************************************/
@@ -45,9 +49,10 @@ void initUSART()
 
     /* Set frame format: 8data, 1 stop */
     UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);
+    USART_cleanScreen();
 }
 
-#if 1
+
 void USART_puts(char *s)
 {
     while (*s) USART_putc (*s++);
@@ -60,16 +65,15 @@ void USART_putlong(uint32_t value, uint8_t radix)
 	USART_puts(buf);
 }
 
-void USART_cleanScreen()
+static void USART_cleanScreen()
 {
 	USART_putc(12);
 }
 
-void USART_putc( unsigned char data )
+static void USART_putc( unsigned char data )
 {
-/* Wait for empty transmit buffer */
-while ( !( UCSR0A & (1 << UDRE0)) );
-/* Put data into buffer, sends the data */
-UDR0 = data;
+    /* Wait for empty transmit buffer */
+    while ( !( UCSR0A & (1 << UDRE0)) );
+    /* Put data into buffer, sends the data */
+    UDR0 = data;
 }
-#endif

@@ -10,6 +10,8 @@
 #include "adc.h"
 #include "stdlib.h"
 #include "avr/pgmspace.h"
+#include "avr/sleep.h"
+#include <util/atomic.h>
 #if (ENABLED == DEBUG_LOGS)
 #include "uartDebug.h"
 #endif
@@ -56,7 +58,7 @@ static adcContainer_t adcContainer =
         /*ADC2*/ {  DISABLED,   0,   ADC_NOT_INITIALIZED,  0,  1024   },
         /*ADC3*/ {  DISABLED,   0,   ADC_NOT_INITIALIZED,  0,  1024   },
         /*ADC4*/ {  DISABLED,   0,   ADC_NOT_INITIALIZED,  0,  1024   },
-        /*ADC5*/ {  ENABLED,   0,   ADC_NOT_INITIALIZED,  0,  1024   }
+        /*ADC5*/ {  ENABLED,    0,   ADC_NOT_INITIALIZED,  0,  1024   }
     }
 };
 #else
@@ -74,6 +76,7 @@ static adcContainer_t adcContainer =
 };
 #endif
 
+static bool timeToAdcSleep = FALSE;
 /***************************************
 * 		FUNCTION PROTOTYPES
 ***************************************/
@@ -91,12 +94,11 @@ void initADC()
 	ADCSRA |= (1 << ADPS0);    // set prescaler to 16
 	ADCSRA |= (1 << ADPS1);
 	ADCSRA |= (1 << ADPS2);
-	ADCSRA |= (1 << ADATE);  //Auto trigger enable
+	//ADCSRA |= (1 << ADATE);  //Auto trigger enable, dont need it in adc noise reduction mode tho
 
     ADCSRA |= (1 << ADIE);     // enable ADC_vect
-	ADCSRB |= (1 << ADTS0);    // Set trigger source Compare Match A
-	ADCSRB |= (1 << ADTS1);
-//	ADCSRB &= ~(1 << ADTS2);
+	//ADCSRB |= (1 << ADTS0);    // Set trigger source Compare Match A, dont need it in adc noise reduction mode tho
+	//ADCSRB |= (1 << ADTS1);
 
 	ADMUX |= (1 << REFS0);     // Set Internal 1.1V Voltage Reference with external capacitor at AREF pin
 	ADMUX |= (1 << REFS1);
@@ -111,7 +113,7 @@ void initADC()
 			break;
 		}
 	}
-	ADCSRA |= (1 << ADSC);  // Start conversion
+	ADCSRA |= (1 << ADSC);  // Start conversion, dont need it in adc noise reduction mode tho
 }
 
 adcChannelState_t getAdcRead(adcChannel_t channel, uint16_t *adcVal)
@@ -130,9 +132,24 @@ adcChannelState_t getAdcRead(adcChannel_t channel, uint16_t *adcVal)
 	return retVal;
 }
 
+void setAdcSleepyConversionFlag()
+{
+    timeToAdcSleep = TRUE;
+}
+
 void adcCycylic ()
 {
-	/* Nothing to do? */
+    if (TRUE == timeToAdcSleep)
+    {
+        timeToAdcSleep = FALSE;
+        set_sleep_mode (SLEEP_MODE_ADC);
+        /* To avoid the MCU entering the sleep mode unless it is the programmer’s purpose,
+       it is recommended to write the Sleep Enable (SE) bit to one just before the execution of the SLEEP
+       instruction and to clear it immediately after waking up */
+        sleep_mode();
+        /* Enter Sleep Mode To Trigger ADC Measurement
+           CPU Will Wake Up From ADC Interrupt */
+    }
 }
 
 /***************************************
@@ -167,6 +184,7 @@ void updateDebugScreen (adcChannel_t channel)
 {
 	if (channel > ADC0 && channel < ADC_MAX_CHANNELS)
 	{
+	    /* magic char set to throw around cursor in console */
 	    printf("\033[%d;3H", channel);
 	    printf("ADC%01d: %04d", channel, _ADC(channel));
 
@@ -209,4 +227,3 @@ ISR(ADC_vect)
         averageSum = ADCW;
     }
 }
-

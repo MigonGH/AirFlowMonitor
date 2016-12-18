@@ -31,6 +31,7 @@ typedef enum
 
 void initADC();
 void adcCycylic();
+void setAdcSleepyConversionFlag();
 
 adcChannelState_t getAdcRead(adcChannel_t channel, uint16_t *adcVal);
 

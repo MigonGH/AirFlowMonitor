@@ -15,6 +15,7 @@
 #include "adc.h"
 #include <stdio.h>
 #include "timer.h"
+
 /* DATA */
 
 /* FUNCTIONS */
@@ -26,14 +27,10 @@ static void init()
 	DDRD = 0xFE;
 
 	//clock_prescale_set(clock_div_1);
-    _delay_ms(1000);
 	initADC();
 	initUSART();
 	initTimer0();
 	sei();
-
-
-
 }
 
 int main (int argc, char **argv)
@@ -43,7 +40,7 @@ int main (int argc, char **argv)
 	while (TRUE)
 	{
 		adcCycylic();
-		_delay_ms(200); //delay is affected by sei()
+		_delay_ms(5); //delay time is affected by sei()
 	}
 	return 0;
 }
