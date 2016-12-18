@@ -34,7 +34,7 @@
 typedef struct
 {
 	bool adcChannelEnabled;
-	uint16_t adcReadValue;
+	volatile uint16_t adcReadValue;
 	adcChannelState_t adcChannelState;
 #if (ENABLED == DEBUG_LOGS)
 	uint16_t adcMaxValue;
@@ -44,7 +44,7 @@ typedef struct
 
 typedef struct
 {
-	adcChannel_t currentChannel;
+    adcChannel_t currentChannel;
 	adcConfig_t  config[ADC_MAX_CHANNELS];
 }adcContainer_t;
 
@@ -76,7 +76,7 @@ static adcContainer_t adcContainer =
 };
 #endif
 
-static bool timeToAdcSleep = FALSE;
+static volatile bool timeToAdcSleep = FALSE;
 /***************************************
 * 		FUNCTION PROTOTYPES
 ***************************************/
